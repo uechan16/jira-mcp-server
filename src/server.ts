@@ -60,6 +60,30 @@ const StatusUpdateSchema = z.object({
   transitionId: z.string().describe("The ID of the transition to perform"),
 });
 
+// Helper function to recursively extract text from ADF nodes
+function extractTextFromADF(node: any): string {
+  if (!node) {
+    return '';
+  }
+
+  // Handle text nodes directly
+  if (node.type === 'text' && node.text) {
+    return node.text;
+  }
+
+  let text = '';
+  // Handle block nodes like paragraph, heading, etc.
+  if (node.content && Array.isArray(node.content)) {
+    text = node.content.map(extractTextFromADF).join('');
+    // Add a newline after paragraphs for better formatting
+    if (node.type === 'paragraph') {
+      text += '\n';
+    }
+  }
+
+  return text;
+}
+
 // Helper function to validate Jira configuration
 function validateJiraConfig(): string | null {
   if (!process.env.JIRA_HOST) return "JIRA_HOST environment variable is not set";
@@ -137,7 +161,7 @@ server.tool(
         `Summary: ${ticket.fields?.summary || 'No summary'}`,
         `Status: ${ticket.fields?.status?.name || 'Unknown status'}`,
         `Type: ${ticket.fields?.issuetype?.name || 'Unknown type'}`,
-        `Description:\n${ticket.fields?.description || 'No description'}`,
+        `Description:\n${extractTextFromADF(ticket.fields?.description) || 'No description'}`,
       ].join('\n');
 
       return {
@@ -146,6 +170,54 @@ server.tool(
     } catch (error) {
       return {
         content: [{ type: "text", text: `Failed to fetch ticket: ${(error as Error).message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_comments",
+  "Get comments for a specific Jira ticket",
+  {
+    ticketId: z.string().describe("The Jira ticket ID (e.g., PROJECT-123)"),
+  },
+  async ({ ticketId }: { ticketId: string }) => {
+    const configError = validateJiraConfig();
+    if (configError) {
+      return {
+        content: [{ type: "text", text: `Configuration error: ${configError}` }],
+      };
+    }
+
+    try {
+      const commentsResult = await jira.issueComments.getComments({ issueIdOrKey: ticketId });
+      
+      if (!commentsResult.comments || commentsResult.comments.length === 0) {
+        return {
+          content: [{ type: "text", text: "No comments found for this ticket." }],
+        };
+      }
+
+      const formattedComments = commentsResult.comments.map(comment => {
+        const author = comment.author?.displayName || 'Unknown Author';
+        // Comments also use ADF, so we need to parse them
+        const body = extractTextFromADF(comment.body) || 'No comment body'; 
+        const createdDate = comment.created ? new Date(comment.created).toLocaleString() : 'Unknown date';
+        return `[${createdDate}] ${author}:\n${body.trim()}\n---`; // Added trim() and separator
+      }).join('\n\n'); // Separate comments with double newline
+
+      return {
+        content: [{ type: "text", text: formattedComments }],
+      };
+    } catch (error) {
+      // Handle cases where the ticket might not exist or other API errors
+      if ((error as any).response?.status === 404) {
+          return {
+              content: [{ type: "text", text: `Ticket ${ticketId} not found.` }],
+          };
+      }
+      return {
+        content: [{ type: "text", text: `Failed to fetch comments: ${(error as Error).message}` }],
       };
     }
   }
