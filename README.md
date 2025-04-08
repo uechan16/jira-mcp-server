@@ -6,6 +6,7 @@ A TypeScript-based MCP server that integrates with Jira, allowing Cursor to inte
 
 - List Jira tickets
 - Get ticket details
+- Get ticket comments
 - Create new tickets
 - Add comments to tickets
 - Update ticket status
@@ -101,6 +102,7 @@ npm start
       "capabilities": [
         "list_tickets",
         "get_ticket",
+        "get_comments",
         "create_ticket",
         "update_status",
         "add_comment"
@@ -116,6 +118,7 @@ After configuring the MCP server, you can use Jira commands directly in Cursor:
 
 - `/jira list` - List your tickets
 - `/jira view TICKET-123` - View ticket details
+- `/jira comments TICKET-123` - Get ticket comments
 - `/jira create` - Create a new ticket
 - `/jira comment TICKET-123` - Add a comment
 - `/jira status TICKET-123` - Update ticket status
@@ -139,6 +142,11 @@ Query params:
 ### Get Ticket
 ```
 GET /api/tickets/:id
+```
+
+### Get Ticket Comments
+```
+GET /api/tickets/:id/comments
 ```
 
 ### Create Ticket
