@@ -367,11 +367,11 @@ server.tool(
       // Construct the JQL query
       const jql = `text ~ "${escapedText}" AND project IN (${projects.join(',')}) ORDER BY updated DESC`;
 
-      // Execute the search
+      // Execute the search with description field included
       const searchResults = await jira.issueSearch.searchForIssuesUsingJql({
         jql,
         maxResults,
-        fields: ['summary', 'status', 'updated', 'project'],
+        fields: ['summary', 'status', 'updated', 'project', 'description'],
       });
 
       if (!searchResults.issues || searchResults.issues.length === 0) {
@@ -380,7 +380,7 @@ server.tool(
         };
       }
 
-      // Format the results
+      // Format the results with descriptions
       const formattedResults = searchResults.issues.map(issue => {
         const summary = issue.fields?.summary || 'No summary';
         const status = issue.fields?.status?.name || 'Unknown status';
@@ -388,8 +388,15 @@ server.tool(
         const updated = issue.fields?.updated ? 
           new Date(issue.fields.updated).toLocaleString() :
           'Unknown date';
+        const description = issue.fields?.description ? 
+          extractTextFromADF(issue.fields.description) : 
+          'No description';
         
-        return `[${project}] ${issue.key}: ${summary}\nStatus: ${status} (Updated: ${updated})\n`;
+        return `[${project}] ${issue.key}: ${summary}
+Status: ${status} (Updated: ${updated})
+Description:
+${description.trim()}
+----------------------------------------\n`;
       }).join('\n');
 
       const totalResults = searchResults.total || 0;
