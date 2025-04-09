@@ -92,6 +92,20 @@ function validateJiraConfig(): string | null {
   return null;
 }
 
+// Helper function to validate and format project keys
+function validateAndFormatProjectKeys(projectKeys: string): string[] {
+  return projectKeys
+    .split(',')
+    .map(key => key.trim().toUpperCase())
+    .filter(key => key.length > 0);
+}
+
+// Helper function to escape special characters in JQL text search
+function escapeJQLText(text: string): string {
+  // Escape special characters: + - & | ! ( ) { } [ ] ^ ~ * ? \ /
+  return text.replace(/[+\-&|!(){}[\]^~*?\\\/]/g, '\\$&');
+}
+
 // Create server instance
 const server = new McpServer({
   name: "jira",
@@ -317,6 +331,77 @@ server.tool(
     } catch (error) {
       return {
         content: [{ type: "text", text: `Failed to update status: ${(error as Error).message}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "search_tickets",
+  "Search for tickets in specific projects using text search",
+  {
+    searchText: z.string().describe("The text to search for in tickets"),
+    projectKeys: z.string().describe("Comma-separated list of project keys"),
+    maxResults: z.number().optional().describe("Maximum number of results to return"),
+  },
+  async ({ searchText, projectKeys, maxResults = 50 }: { searchText: string; projectKeys: string; maxResults?: number }) => {
+    const configError = validateJiraConfig();
+    if (configError) {
+      return {
+        content: [{ type: "text", text: `Configuration error: ${configError}` }],
+      };
+    }
+
+    try {
+      // Validate and format project keys
+      const projects = validateAndFormatProjectKeys(projectKeys);
+      if (projects.length === 0) {
+        return {
+          content: [{ type: "text", text: "No valid project keys provided. Please provide at least one project key." }],
+        };
+      }
+
+      // Escape the search text for JQL
+      const escapedText = escapeJQLText(searchText);
+
+      // Construct the JQL query
+      const jql = `text ~ "${escapedText}" AND project IN (${projects.join(',')}) ORDER BY updated DESC`;
+
+      // Execute the search
+      const searchResults = await jira.issueSearch.searchForIssuesUsingJql({
+        jql,
+        maxResults,
+        fields: ['summary', 'status', 'updated', 'project'],
+      });
+
+      if (!searchResults.issues || searchResults.issues.length === 0) {
+        return {
+          content: [{ type: "text", text: `No tickets found matching "${searchText}" in projects: ${projects.join(', ')}` }],
+        };
+      }
+
+      // Format the results
+      const formattedResults = searchResults.issues.map(issue => {
+        const summary = issue.fields?.summary || 'No summary';
+        const status = issue.fields?.status?.name || 'Unknown status';
+        const project = issue.fields?.project?.key || 'Unknown project';
+        const updated = issue.fields?.updated ? 
+          new Date(issue.fields.updated).toLocaleString() :
+          'Unknown date';
+        
+        return `[${project}] ${issue.key}: ${summary}\nStatus: ${status} (Updated: ${updated})\n`;
+      }).join('\n');
+
+      const totalResults = searchResults.total || 0;
+      const headerText = `Found ${totalResults} ticket${totalResults !== 1 ? 's' : ''} matching "${searchText}"\n\n`;
+
+      return {
+        content: [{ type: "text", text: headerText + formattedResults }],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      return {
+        content: [{ type: "text", text: `Failed to search tickets: ${errorMessage}` }],
       };
     }
   }
