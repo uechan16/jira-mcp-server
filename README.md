@@ -3,6 +3,10 @@
 
 A TypeScript-based MCP server that integrates with Jira, allowing Cursor to interact with Jira tickets.
 
+<a href="https://glama.ai/mcp/servers/@kornbed/jira-mcp-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@kornbed/jira-mcp-server/badge" alt="Jira Server for Cursor MCP server" />
+</a>
+
 ## Features
 
 - List Jira tickets
@@ -225,11 +229,6 @@ Comment text
 [3/20/2024, 9:30:00 AM] Jane Smith:
 Another comment
 ---
-```
-
-### Get Ticket Comments
-```
-GET /api/tickets/:id/comments
 ```
 
 ### Create Ticket
