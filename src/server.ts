@@ -34,6 +34,7 @@ interface JiraTicket {
   description: string;
   projectKey: string;
   issueType: string;
+  parent?: string; // Optional parent/epic key for next-gen projects
 }
 
 interface JiraComment {
@@ -50,6 +51,7 @@ const TicketSchema = z.object({
   description: z.string().describe("The ticket description"),
   projectKey: z.string().describe("The project key (e.g., PROJECT)"),
   issueType: z.string().describe("The type of issue (e.g., Task, Bug)"),
+  parent: z.string().optional().describe("The parent/epic key (for next-gen projects)"),
 });
 
 const CommentSchema = z.object({
@@ -169,17 +171,46 @@ server.tool(
     }
 
     try {
-      const ticket = await jira.issues.getIssue({ issueIdOrKey: ticketId });
+      const ticket = await jira.issues.getIssue({
+        issueIdOrKey: ticketId,
+        fields: ['summary', 'status', 'issuetype', 'description', 'parent', 'issuelinks'],
+      });
+
       const formattedTicket = [
         `Key: ${ticket.key}`,
         `Summary: ${ticket.fields?.summary || 'No summary'}`,
         `Status: ${ticket.fields?.status?.name || 'Unknown status'}`,
         `Type: ${ticket.fields?.issuetype?.name || 'Unknown type'}`,
         `Description:\n${extractTextFromADF(ticket.fields?.description) || 'No description'}`,
-      ].join('\n');
+        `Parent: ${ticket.fields?.parent?.key || 'No parent'}`
+      ];
+
+      // Linked Issues Section
+      const links = ticket.fields?.issuelinks || [];
+      if (Array.isArray(links) && links.length > 0) {
+        formattedTicket.push('\nLinked Issues:');
+        for (const link of links) {
+          // Outward (this issue is the source)
+          if (link.outwardIssue) {
+            const key = link.outwardIssue.key;
+            const summary = link.outwardIssue.fields?.summary || 'No summary';
+            const type = link.type?.outward || link.type?.name || 'Related';
+            formattedTicket.push(`- [${type}] ${key}: ${summary}`);
+          }
+          // Inward (this issue is the target)
+          if (link.inwardIssue) {
+            const key = link.inwardIssue.key;
+            const summary = link.inwardIssue.fields?.summary || 'No summary';
+            const type = link.type?.inward || link.type?.name || 'Related';
+            formattedTicket.push(`- [${type}] ${key}: ${summary}`);
+          }
+        }
+      } else {
+        formattedTicket.push('\nLinked Issues: None');
+      }
 
       return {
-        content: [{ type: "text", text: formattedTicket }],
+        content: [{ type: "text", text: formattedTicket.join('\n') }],
       };
     } catch (error) {
       return {
@@ -252,13 +283,20 @@ server.tool(
     }
 
     try {
+      const fields: any = {
+        project: { key: ticket.projectKey },
+        summary: ticket.summary,
+        description: ticket.description,
+        issuetype: { name: ticket.issueType },
+      };
+
+      // Add parent/epic link if specified
+      if (ticket.parent) {
+        fields.parent = { key: ticket.parent };
+      }
+
       const newTicket = await jira.issues.createIssue({
-        fields: {
-          project: { key: ticket.projectKey },
-          summary: ticket.summary,
-          description: ticket.description,
-          issuetype: { name: ticket.issueType },
-        },
+        fields: fields,
       });
 
       return {
