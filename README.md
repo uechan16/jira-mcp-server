@@ -1,6 +1,7 @@
 <!-- markdownlint-disable MD029 -->
 # Jira MCP Server for Cursor
 
+[![smithery badge](https://smithery.ai/badge/@kornbed/jira-mcp-server)](https://smithery.ai/server/@kornbed/jira-mcp-server)
 A TypeScript-based MCP server that integrates with Jira, allowing Cursor to interact with Jira tickets.
 
 <a href="https://glama.ai/mcp/servers/@kornbed/jira-mcp-server">
@@ -18,6 +19,14 @@ A TypeScript-based MCP server that integrates with Jira, allowing Cursor to inte
 - Full MCP protocol support for Cursor integration
 
 ## Setup
+
+### Installing via Smithery
+
+To install Jira MCP Server for Cursor for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@kornbed/jira-mcp-server):
+
+```bash
+npx -y @smithery/cli install @kornbed/jira-mcp-server --client claude
+```
 
 1. Install dependencies:
 
@@ -124,6 +133,7 @@ npm start
       ]
     }
   }
+}
 }
 ```
 
