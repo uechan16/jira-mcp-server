@@ -38,6 +38,6 @@ startCommand:
     })
   exampleConfig:
     jiraHost: https://example.atlassian.net
-    jiraEmail: user@example.com
-    jiraApiToken: abcdefghijklmnopqrstuvwx
+    jiraEmail: <your_jira_email_here>
+    jiraApiToken: <your_jira_api_token_here>
     port: 3000
