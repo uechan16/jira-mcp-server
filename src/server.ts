@@ -173,7 +173,7 @@ server.tool(
     try {
       const ticket = await jira.issues.getIssue({
         issueIdOrKey: ticketId,
-        fields: ['summary', 'status', 'issuetype', 'description', 'parent', 'issuelinks'],
+        fields: ['*all'],
       });
 
       const formattedTicket = [
@@ -207,6 +207,59 @@ server.tool(
         }
       } else {
         formattedTicket.push('\nLinked Issues: None');
+      }
+
+      // Sub-tasks Section
+      const subtasks = ticket.fields?.subtasks || [];
+      if (Array.isArray(subtasks) && subtasks.length > 0) {
+        formattedTicket.push('\nSub-tasks:');
+        for (const subtask of subtasks) {
+          const key = subtask.key;
+          const summary = subtask.fields?.summary || 'No summary';
+          const status = subtask.fields?.status?.name || 'Unknown status';
+          formattedTicket.push(`- ${key}: ${summary} (${status})`);
+        }
+      } else {
+        formattedTicket.push('\nSub-tasks: None');
+      }
+
+      // Custom Fields Section
+      formattedTicket.push('\nCustom Fields:');
+      let customFieldsFound = false;
+      if (ticket.fields) {
+        for (const key in ticket.fields) {
+          if (key.startsWith('customfield_')) {
+            const fieldName = (ticket.names && typeof ticket.names === 'object' && key in ticket.names) ? (ticket.names as Record<string, string>)[key] : key;
+            let fieldValue = ticket.fields[key];
+
+            if (typeof fieldValue === 'object' && fieldValue !== null) {
+              if (fieldValue.type && fieldValue.content) {
+                fieldValue = extractTextFromADF(fieldValue).trim();
+              } else if (Array.isArray(fieldValue)) {
+                fieldValue = fieldValue.map(item => {
+                  if (typeof item === 'object' && item !== null) {
+                    return item.displayName || item.name || item.value || JSON.stringify(item);
+                  }
+                  return String(item);
+                }).join(', ');
+              } else {
+                fieldValue = fieldValue.displayName || fieldValue.name || fieldValue.value || JSON.stringify(fieldValue);
+              }
+            } else if (fieldValue === null || fieldValue === undefined) {
+              fieldValue = 'N/A';
+            } else {
+              fieldValue = String(fieldValue);
+            }
+            
+            if (fieldValue && fieldValue.trim() !== '' && fieldValue !== 'N/A') {
+              formattedTicket.push(`- ${fieldName}: ${fieldValue}`);
+              customFieldsFound = true;
+            }
+          }
+        }
+      }
+      if (!customFieldsFound) {
+        formattedTicket.push('  None');
       }
 
       return {
